@@ -1,0 +1,15 @@
+[package]
+name = "treegen"
+version = "0.1.0"
+edition = "2021"
+description = "从树形结构文本快速生成目录和文件的命令行工具"
+authors = ["luoy-oss"]
+license = "MIT"
+repository = "https://github.com/luoy-oss/treegen"
+homepage = "https://github.com/luoy-oss/treegen"
+keywords = ["tree", "generator", "cli", "filesystem", "scaffold"]
+categories = ["command-line-utilities", "development-tools"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+anyhow = "1"

@@ -1,0 +1,150 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            suffix: ''
+          - target: x86_64-unknown-linux-musl
+            os: ubuntu-latest
+            suffix: ''
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            suffix: ''
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+            suffix: '.exe'
+          - target: i686-pc-windows-msvc
+            os: windows-latest
+            suffix: '.exe'
+          - target: x86_64-apple-darwin
+            os: macos-latest
+            suffix: ''
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            suffix: ''
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install cross-compilation dependencies (aarch64 Linux)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build
+        run: cargo build --release --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+
+      - name: Prepare artifact
+        shell: bash
+        run: |
+          cd target/${{ matrix.target }}/release
+          mkdir -p ../../../artifacts
+          tar czf ../../../artifacts/treegen-${{ matrix.target }}.tar.gz treegen${{ matrix.suffix }}
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            # 同时生成 zip 包便于 Windows 用户使用
+            powershell Compress-Archive -Path treegen${{ matrix.suffix }} -DestinationPath ../../../artifacts/treegen-${{ matrix.target }}.zip
+          fi
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: treegen-${{ matrix.target }}
+          path: artifacts/treegen-${{ matrix.target }}.*
+
+  create-release:
+    name: Create Release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Generate checksums
+        run: |
+          cd artifacts
+          for f in treegen-*/*; do
+            sha256sum "$f" >> checksums.txt
+          done
+          mv checksums.txt ../checksums.txt
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: treegen ${{ github.ref_name }}
+          body: |
+            ## treegen ${{ github.ref_name }}
+
+            从树形结构文本快速生成目录和文件。
+
+            ### 安装方式
+
+            **Linux/macOS:**
+            ```bash
+            curl -fsSL https://github.com/luoy-oss/treegen/releases/latest/download/install.sh | bash
+            ```
+
+            **Windows (PowerShell):**
+            ```powershell
+            irm https://github.com/luoy-oss/treegen/releases/latest/download/install.ps1 | iex
+            ```
+
+            **或使用 Cargo:**
+            ```bash
+            cargo install treegen
+            ```
+
+            ### 使用示例
+            ```bash
+            # 管道输入
+            echo "my-project/\n├── src/\n│   └── main.ts\n└── README.md" | treegen
+
+            # 从文件读取
+            treegen structure.txt
+
+            # 指定输出目录
+            treegen structure.txt -o ./my-app
+            ```
+          files: |
+            artifacts/treegen-*/*
+          draft: true
+          prerelease: false
+
+  publish-cargo:
+    name: Publish to crates.io
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+      - name: Publish
+        run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
