@@ -7,6 +7,8 @@ authors = ["luoy-oss"]
 license = "MIT"
 repository = "https://github.com/luoy-oss/treegen"
 homepage = "https://github.com/luoy-oss/treegen"
+documentation = "https://github.com/luoy-oss/treegen"
+readme = "README.md"
 keywords = ["tree", "generator", "cli", "filesystem", "scaffold"]
 categories = ["command-line-utilities", "development-tools"]
 

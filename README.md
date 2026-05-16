@@ -212,4 +212,6 @@ cargo build --release
 
 ## 许可证
 
-MIT
+GPLv3 License
+
+Copyright (C) 2026 luoy-oss
